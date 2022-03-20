@@ -106,7 +106,7 @@ func (w *Watcher) startLogCollectors(ctx context.Context, pod *corev1.Pod) {
 }
 
 func (w *Watcher) collectLogs(ctx context.Context, log logrus.FieldLogger, pod *corev1.Pod, containerName string, restartCount int) {
-	log.Info("Starting to collect logs.")
+	log.Info("Starting to collect logs…")
 
 	request := w.clientset.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &corev1.PodLogOptions{
 		Container: containerName,

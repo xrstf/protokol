@@ -62,12 +62,6 @@ func main() {
 		opt.kubeconfig = os.Getenv("KUBECONFIG")
 	}
 
-	if opt.directory == "" {
-		opt.directory = fmt.Sprintf("loks-%s", time.Now().Format("2006.01.02T15.04.05"))
-	}
-
-	log.WithField("directory", opt.directory).Info("Storing logs on disk")
-
 	if opt.labels != "" {
 		if _, err := labels.Parse(opt.labels); err != nil {
 			log.Fatalf("Invalid label selector: %v", err)
@@ -85,6 +79,12 @@ func main() {
 		log.Fatal("At least a namespace or a resource name pattern must be given.")
 	}
 
+	if opt.directory == "" {
+		opt.directory = fmt.Sprintf("loks-%s", time.Now().Format("2006.01.02T15.04.05"))
+	}
+
+	log.WithField("directory", opt.directory).Info("Storing logs on disk.")
+
 	c, err := collector.NewDiskCollector(opt.directory, opt.flatFiles)
 	if err != nil {
 		log.Fatalf("Failed to create log collector: %v", err)
@@ -93,7 +93,7 @@ func main() {
 	// //////////////////////////////////////
 	// setup kubernetes client
 
-	log.Debug("Creating Kubernetes clientset...")
+	log.Debug("Creating Kubernetes clientset…")
 
 	config, err := clientcmd.BuildConfigFromFlags("", opt.kubeconfig)
 	if err != nil {
@@ -118,7 +118,7 @@ func main() {
 		Resource: "pods",
 	})
 
-	log.Debug("Starting to watch pods...")
+	log.Debug("Starting to watch pods…")
 
 	wi, err := resourceInterface.Watch(rootCtx, metav1.ListOptions{
 		LabelSelector: opt.labels,
