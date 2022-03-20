@@ -5,6 +5,10 @@ on your local machine. It's primarily intended to be used in test scenarios wher
 need to gather logs of many different, possibly restarting or reconciled pods at the
 same time.
 
+<p align="center">
+  <img src="docs/sample.png" />
+</p>
+
 ## Installation
 
 You can download a binary for the [latest release on GitHub](https://github.com/xrstf/loks/releases)
