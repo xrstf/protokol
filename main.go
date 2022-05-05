@@ -25,6 +25,7 @@ type options struct {
 	namespaces     []string
 	containerNames []string
 	labels         string
+	live           bool
 	flatFiles      bool
 	verbose        bool
 }
@@ -39,6 +40,7 @@ func main() {
 	pflag.StringVarP(&opt.labels, "labels", "l", opt.labels, "Label-selector as an alternative to specifying resource names")
 	pflag.StringVarP(&opt.directory, "output", "o", opt.directory, "Directory where logs should be stored")
 	pflag.BoolVarP(&opt.flatFiles, "flat", "f", opt.flatFiles, "Do not create directory per namespace, but put all logs in the same directory")
+	pflag.BoolVar(&opt.live, "live", opt.live, "Only consider running pods, ignore completed/failed pods")
 	pflag.BoolVarP(&opt.verbose, "verbose", "v", opt.verbose, "Enable more verbose output")
 	pflag.Parse()
 
@@ -127,6 +129,6 @@ func main() {
 		log.Fatalf("Failed to create watch for pods: %v", err)
 	}
 
-	w := watcher.NewWatcher(clientset, c, log, opt.namespaces, args, opt.containerNames)
+	w := watcher.NewWatcher(clientset, c, log, opt.namespaces, args, opt.containerNames, opt.live)
 	w.Watch(rootCtx, wi)
 }

@@ -25,9 +25,10 @@ type Watcher struct {
 	resourceNames  []string
 	containerNames []string
 	seenContainers sets.String
+	runningOnly    bool
 }
 
-func NewWatcher(clientset *kubernetes.Clientset, c collector.Collector, log logrus.FieldLogger, namespaces, resourceNames, containerNames []string) *Watcher {
+func NewWatcher(clientset *kubernetes.Clientset, c collector.Collector, log logrus.FieldLogger, namespaces, resourceNames, containerNames []string, runningOnly bool) *Watcher {
 	return &Watcher{
 		clientset:      clientset,
 		log:            log,
@@ -36,6 +37,7 @@ func NewWatcher(clientset *kubernetes.Clientset, c collector.Collector, log logr
 		resourceNames:  resourceNames,
 		containerNames: containerNames,
 		seenContainers: sets.NewString(),
+		runningOnly:    runningOnly,
 	}
 }
 
@@ -59,10 +61,14 @@ func (w *Watcher) Watch(ctx context.Context, wi watch.Interface) {
 }
 
 func (w *Watcher) startLogCollectors(ctx context.Context, pod *corev1.Pod) {
-	allContainers := append(pod.Spec.InitContainers, pod.Spec.Containers...)
+	w.startLogCollectorsForContainers(ctx, pod, pod.Spec.InitContainers, pod.Status.InitContainerStatuses)
+	w.startLogCollectorsForContainers(ctx, pod, pod.Spec.Containers, pod.Status.ContainerStatuses)
+}
+
+func (w *Watcher) startLogCollectorsForContainers(ctx context.Context, pod *corev1.Pod, containers []corev1.Container, statuses []corev1.ContainerStatus) {
 	podLog := w.getPodLog(pod)
 
-	for _, container := range allContainers {
+	for _, container := range containers {
 		containerName := container.Name
 		containerLog := podLog.WithField("container", containerName)
 
@@ -72,9 +78,9 @@ func (w *Watcher) startLogCollectors(ctx context.Context, pod *corev1.Pod) {
 		}
 
 		var status *corev1.ContainerStatus
-		for i, s := range pod.Status.ContainerStatuses {
+		for i, s := range statuses {
 			if s.Name == containerName {
-				status = &pod.Status.ContainerStatuses[i]
+				status = &statuses[i]
 				break
 			}
 		}
@@ -85,9 +91,14 @@ func (w *Watcher) startLogCollectors(ctx context.Context, pod *corev1.Pod) {
 			continue
 		}
 
-		// container is not running
-		if status.State.Running == nil {
-			containerLog.Debug("Container is not running.")
+		// container sttaus not what we want
+		if w.runningOnly {
+			if status.State.Running == nil {
+				containerLog.Debug("Container is not running.")
+				continue
+			}
+		} else if status.State.Running == nil && status.State.Terminated == nil {
+			containerLog.Debug("Container is still waiting.")
 			continue
 		}
 
