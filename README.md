@@ -21,11 +21,12 @@ go install go.xrstf.de/loks
 ## Usage
 
 ```
-Usage of ./loks:
+Usage of loks:
   -c, --container stringArray   Container names to store logs for (supports glob expression) (can be given multiple times)
   -f, --flat                    Do not create directory per namespace, but put all logs in the same directory
       --kubeconfig string       kubeconfig file to use (uses $KUBECONFIG by default)
   -l, --labels string           Label-selector as an alternative to specifying resource names
+      --live                    Only consider running pods, ignore completed/failed pods
   -n, --namespace stringArray   Kubernetes namespace to watch resources in (supports glob expression) (can be given multiple times)
   -o, --output string           Directory where logs should be stored
   -v, --verbose                 Enable more verbose output
