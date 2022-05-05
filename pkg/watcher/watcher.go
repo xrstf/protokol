@@ -52,17 +52,22 @@ func (w *Watcher) Watch(ctx context.Context, wi watch.Interface) {
 			continue
 		}
 
-		if w.resourceNameMatches(pod) && w.resourceNamespaceMatches(pod) {
+		if w.podMatchesCriteria(pod) {
 			w.startLogCollectors(ctx, pod)
 		}
 	}
 }
 
 func (w *Watcher) startLogCollectors(ctx context.Context, pod *corev1.Pod) {
-	for _, container := range pod.Spec.Containers {
+	allContainers := append(pod.Spec.InitContainers, pod.Spec.Containers...)
+	podLog := w.getPodLog(pod)
+
+	for _, container := range allContainers {
 		containerName := container.Name
+		containerLog := podLog.WithField("container", containerName)
 
 		if !w.containerNameMatches(containerName) {
+			containerLog.Debug("Container name does not match.")
 			continue
 		}
 
@@ -76,11 +81,13 @@ func (w *Watcher) startLogCollectors(ctx context.Context, pod *corev1.Pod) {
 
 		// container has no status yet
 		if status == nil {
+			containerLog.Debug("Container has no status yet.")
 			continue
 		}
 
 		// container is not running
 		if status.State.Running == nil {
+			containerLog.Debug("Container is not running.")
 			continue
 		}
 
@@ -95,13 +102,8 @@ func (w *Watcher) startLogCollectors(ctx context.Context, pod *corev1.Pod) {
 
 		// remember that we have seen this incarnation
 		w.seenContainers.Insert(ident)
-		log := w.log.WithFields(logrus.Fields{
-			"namespace": pod.Namespace,
-			"pod":       pod.Name,
-			"container": containerName,
-		})
 
-		go w.collectLogs(ctx, log, pod, containerName, int(status.RestartCount))
+		go w.collectLogs(ctx, containerLog, pod, containerName, int(status.RestartCount))
 	}
 }
 
@@ -127,49 +129,38 @@ func (w *Watcher) collectLogs(ctx context.Context, log logrus.FieldLogger, pod *
 	log.Info("Logs have finished.")
 }
 
-func (w *Watcher) resourceNameMatches(pod *corev1.Pod) bool {
-	// no names given, so all resources match
-	if len(w.resourceNames) == 0 {
+func (w *Watcher) getPodLog(pod *corev1.Pod) logrus.FieldLogger {
+	return w.log.WithField("pod", pod.Name).WithField("namespace", pod.Namespace)
+}
+
+func (w *Watcher) podMatchesCriteria(pod *corev1.Pod) bool {
+	podLog := w.getPodLog(pod)
+
+	return w.resourceNameMatches(podLog, pod) && w.resourceNamespaceMatches(podLog, pod)
+}
+
+func (w *Watcher) resourceNameMatches(log logrus.FieldLogger, pod *corev1.Pod) bool {
+	if needleMatchesPatterns(pod.GetName(), w.resourceNames) {
 		return true
 	}
 
-	for _, pattern := range w.resourceNames {
-		if nameMatches(pod.GetName(), pattern) {
-			return true
-		}
-	}
+	log.Debug("Pod name does not match.")
 
 	return false
 }
 
-func (w *Watcher) resourceNamespaceMatches(pod *corev1.Pod) bool {
-	// no namespaces given, so all resources match
-	if len(w.namespaces) == 0 {
+func (w *Watcher) resourceNamespaceMatches(log logrus.FieldLogger, pod *corev1.Pod) bool {
+	if needleMatchesPatterns(pod.GetNamespace(), w.namespaces) {
 		return true
 	}
 
-	for _, pattern := range w.namespaces {
-		if nameMatches(pod.GetNamespace(), pattern) {
-			return true
-		}
-	}
+	log.Debug("Pod namespace does not match.")
 
 	return false
 }
 
 func (w *Watcher) containerNameMatches(containerName string) bool {
-	// no container names given, so all resources match
-	if len(w.containerNames) == 0 {
-		return true
-	}
-
-	for _, pattern := range w.containerNames {
-		if nameMatches(containerName, pattern) {
-			return true
-		}
-	}
-
-	return false
+	return needleMatchesPatterns(containerName, w.containerNames)
 }
 
 func nameMatches(name string, pattern string) bool {
@@ -179,4 +170,19 @@ func nameMatches(name string, pattern string) bool {
 	}
 
 	return name == pattern
+}
+
+func needleMatchesPatterns(needle string, patterns []string) bool {
+	// no patterns given, so everything matches
+	if len(patterns) == 0 {
+		return true
+	}
+
+	for _, pattern := range patterns {
+		if nameMatches(needle, pattern) {
+			return true
+		}
+	}
+
+	return false
 }
