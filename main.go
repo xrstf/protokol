@@ -11,12 +11,15 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+	watchtools "k8s.io/client-go/tools/watch"
 )
 
 type options struct {
@@ -64,8 +67,10 @@ func main() {
 		opt.kubeconfig = os.Getenv("KUBECONFIG")
 	}
 
+	var labelSelector labels.Selector
 	if opt.labels != "" {
-		if _, err := labels.Parse(opt.labels); err != nil {
+		var err error
+		if labelSelector, err = labels.Parse(opt.labels); err != nil {
 			log.Fatalf("Invalid label selector: %v", err)
 		}
 	}
@@ -122,13 +127,51 @@ func main() {
 
 	log.Debug("Starting to watch pods…")
 
-	wi, err := resourceInterface.Watch(rootCtx, metav1.ListOptions{
-		LabelSelector: opt.labels,
+	// to use the retrywatcher, we need a start revision; setting this to empty or "0"
+	// is not supported, so we need a real revision; to achieve this we simply create
+	// a "standard" watcher, takes the first event and its resourceVersion as the
+	// starting point for the second, longlived retrying watcher
+	initialPods, resourceVersion, err := getStartPods(rootCtx, clientset, opt.labels)
+	if err != nil {
+		log.Fatalf("Failed to determine initial resourceVersion: %v", err)
+	}
+
+	wi, err := watchtools.NewRetryWatcher(resourceVersion, &watchContextInjector{
+		ctx: rootCtx,
+		ri:  resourceInterface,
 	})
 	if err != nil {
 		log.Fatalf("Failed to create watch for pods: %v", err)
 	}
 
-	w := watcher.NewWatcher(clientset, c, log, opt.namespaces, args, opt.containerNames, opt.live)
+	watcherOpts := watcher.Options{
+		LabelSelector:  labelSelector,
+		Namespaces:     opt.namespaces,
+		ResourceNames:  args,
+		ContainerNames: opt.containerNames,
+		RunningOnly:    opt.live,
+	}
+
+	w := watcher.NewWatcher(clientset, c, log, initialPods, watcherOpts)
 	w.Watch(rootCtx, wi)
+}
+
+func getStartPods(ctx context.Context, cs *kubernetes.Clientset, labelSelector string) ([]corev1.Pod, string, error) {
+	pods, err := cs.CoreV1().Pods("").List(ctx, metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to perform list on Pods: %w", err)
+	}
+
+	return pods.Items, pods.ResourceVersion, nil
+}
+
+type watchContextInjector struct {
+	ctx context.Context
+	ri  dynamic.ResourceInterface
+}
+
+func (cw *watchContextInjector) Watch(options metav1.ListOptions) (watch.Interface, error) {
+	return cw.ri.Watch(cw.ctx, options)
 }

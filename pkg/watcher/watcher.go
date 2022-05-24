@@ -11,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/watch"
@@ -21,27 +22,43 @@ type Watcher struct {
 	clientset      *kubernetes.Clientset
 	log            logrus.FieldLogger
 	collector      collector.Collector
-	namespaces     []string
-	resourceNames  []string
-	containerNames []string
+	initialPods    []corev1.Pod
+	opt            Options
 	seenContainers sets.String
-	runningOnly    bool
 }
 
-func NewWatcher(clientset *kubernetes.Clientset, c collector.Collector, log logrus.FieldLogger, namespaces, resourceNames, containerNames []string, runningOnly bool) *Watcher {
+type Options struct {
+	LabelSelector  labels.Selector
+	Namespaces     []string
+	ResourceNames  []string
+	ContainerNames []string
+	RunningOnly    bool
+}
+
+func NewWatcher(
+	clientset *kubernetes.Clientset,
+	c collector.Collector,
+	log logrus.FieldLogger,
+	initialPods []corev1.Pod,
+	opt Options,
+) *Watcher {
 	return &Watcher{
 		clientset:      clientset,
 		log:            log,
 		collector:      c,
-		namespaces:     namespaces,
-		resourceNames:  resourceNames,
-		containerNames: containerNames,
+		initialPods:    initialPods,
+		opt:            opt,
 		seenContainers: sets.NewString(),
-		runningOnly:    runningOnly,
 	}
 }
 
 func (w *Watcher) Watch(ctx context.Context, wi watch.Interface) {
+	for i := range w.initialPods {
+		if w.podMatchesCriteria(&w.initialPods[i]) {
+			w.startLogCollectors(ctx, &w.initialPods[i])
+		}
+	}
+
 	for event := range wi.ResultChan() {
 		obj, ok := event.Object.(*unstructured.Unstructured)
 		if !ok {
@@ -92,7 +109,7 @@ func (w *Watcher) startLogCollectorsForContainers(ctx context.Context, pod *core
 		}
 
 		// container sttaus not what we want
-		if w.runningOnly {
+		if w.opt.RunningOnly {
 			if status.State.Running == nil {
 				containerLog.Debug("Container is not running.")
 				continue
@@ -147,11 +164,11 @@ func (w *Watcher) getPodLog(pod *corev1.Pod) logrus.FieldLogger {
 func (w *Watcher) podMatchesCriteria(pod *corev1.Pod) bool {
 	podLog := w.getPodLog(pod)
 
-	return w.resourceNameMatches(podLog, pod) && w.resourceNamespaceMatches(podLog, pod)
+	return w.resourceNameMatches(podLog, pod) && w.resourceNamespaceMatches(podLog, pod) && w.resourceLabelsMatches(podLog, pod)
 }
 
 func (w *Watcher) resourceNameMatches(log logrus.FieldLogger, pod *corev1.Pod) bool {
-	if needleMatchesPatterns(pod.GetName(), w.resourceNames) {
+	if needleMatchesPatterns(pod.GetName(), w.opt.ResourceNames) {
 		return true
 	}
 
@@ -161,7 +178,7 @@ func (w *Watcher) resourceNameMatches(log logrus.FieldLogger, pod *corev1.Pod) b
 }
 
 func (w *Watcher) resourceNamespaceMatches(log logrus.FieldLogger, pod *corev1.Pod) bool {
-	if needleMatchesPatterns(pod.GetNamespace(), w.namespaces) {
+	if needleMatchesPatterns(pod.GetNamespace(), w.opt.Namespaces) {
 		return true
 	}
 
@@ -170,8 +187,18 @@ func (w *Watcher) resourceNamespaceMatches(log logrus.FieldLogger, pod *corev1.P
 	return false
 }
 
+func (w *Watcher) resourceLabelsMatches(log logrus.FieldLogger, pod *corev1.Pod) bool {
+	if w.opt.LabelSelector == nil || w.opt.LabelSelector.Matches(labels.Set(pod.Labels)) {
+		return true
+	}
+
+	log.Debug("Pod labels do not match.")
+
+	return false
+}
+
 func (w *Watcher) containerNameMatches(containerName string) bool {
-	return needleMatchesPatterns(containerName, w.containerNames)
+	return needleMatchesPatterns(containerName, w.opt.ContainerNames)
 }
 
 func nameMatches(name string, pattern string) bool {
