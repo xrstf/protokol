@@ -35,6 +35,7 @@ type Options struct {
 	ContainerNames []string
 	RunningOnly    bool
 	OneShot        bool
+	DumpMetadata   bool
 }
 
 func NewWatcher(
@@ -88,8 +89,19 @@ func (w *Watcher) Watch(ctx context.Context, wi watch.Interface) {
 }
 
 func (w *Watcher) startLogCollectors(ctx context.Context, wg *sync.WaitGroup, pod *corev1.Pod) {
+	w.dumpPodMetadata(ctx, pod)
 	w.startLogCollectorsForContainers(ctx, wg, pod, pod.Spec.InitContainers, pod.Status.InitContainerStatuses)
 	w.startLogCollectorsForContainers(ctx, wg, pod, pod.Spec.Containers, pod.Status.ContainerStatuses)
+}
+
+func (w *Watcher) dumpPodMetadata(ctx context.Context, pod *corev1.Pod) {
+	if !w.opt.DumpMetadata {
+		return
+	}
+
+	if err := w.collector.CollectPodMetadata(ctx, pod); err != nil {
+		w.getPodLog(pod).WithError(err).Error("Failed to collect pod metadata.")
+	}
 }
 
 func (w *Watcher) startLogCollectorsForContainers(ctx context.Context, wg *sync.WaitGroup, pod *corev1.Pod, containers []corev1.Container, statuses []corev1.ContainerStatus) {

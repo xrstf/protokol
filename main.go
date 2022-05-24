@@ -31,6 +31,7 @@ type options struct {
 	live           bool
 	oneShot        bool
 	flatFiles      bool
+	dumpMetadata   bool
 	verbose        bool
 }
 
@@ -46,6 +47,7 @@ func main() {
 	pflag.BoolVarP(&opt.flatFiles, "flat", "f", opt.flatFiles, "Do not create directory per namespace, but put all logs in the same directory")
 	pflag.BoolVar(&opt.live, "live", opt.live, "Only consider running pods, ignore completed/failed pods")
 	pflag.BoolVar(&opt.oneShot, "oneshot", opt.oneShot, "Dump logs, but do not tail the containers (i.e. exit after downloading the current state)")
+	pflag.BoolVar(&opt.dumpMetadata, "metadata", opt.dumpMetadata, "Dump Pods additionally as YAML (note that this can include secrets in environment variables)")
 	pflag.BoolVarP(&opt.verbose, "verbose", "v", opt.verbose, "Enable more verbose output")
 	pflag.Parse()
 
@@ -156,6 +158,7 @@ func main() {
 		ContainerNames: opt.containerNames,
 		RunningOnly:    opt.live,
 		OneShot:        opt.oneShot,
+		DumpMetadata:   opt.dumpMetadata,
 	}
 
 	w := watcher.NewWatcher(clientset, c, log, initialPods, watcherOpts)
