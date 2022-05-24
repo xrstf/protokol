@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"go.xrstf.de/loks/pkg/collector"
 
@@ -33,6 +34,7 @@ type Options struct {
 	ResourceNames  []string
 	ContainerNames []string
 	RunningOnly    bool
+	OneShot        bool
 }
 
 func NewWatcher(
@@ -53,36 +55,44 @@ func NewWatcher(
 }
 
 func (w *Watcher) Watch(ctx context.Context, wi watch.Interface) {
+	wg := sync.WaitGroup{}
+
 	for i := range w.initialPods {
 		if w.podMatchesCriteria(&w.initialPods[i]) {
-			w.startLogCollectors(ctx, &w.initialPods[i])
+			w.startLogCollectors(ctx, &wg, &w.initialPods[i])
 		}
 	}
 
-	for event := range wi.ResultChan() {
-		obj, ok := event.Object.(*unstructured.Unstructured)
-		if !ok {
-			continue
-		}
+	// wi can be nil if we do not want to actually watch, but instead
+	// just process the initial pods (if --oneshot is given)
+	if wi != nil {
+		for event := range wi.ResultChan() {
+			obj, ok := event.Object.(*unstructured.Unstructured)
+			if !ok {
+				continue
+			}
 
-		pod := &corev1.Pod{}
-		err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.UnstructuredContent(), pod)
-		if err != nil {
-			continue
-		}
+			pod := &corev1.Pod{}
+			err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.UnstructuredContent(), pod)
+			if err != nil {
+				continue
+			}
 
-		if w.podMatchesCriteria(pod) {
-			w.startLogCollectors(ctx, pod)
+			if w.podMatchesCriteria(pod) {
+				w.startLogCollectors(ctx, &wg, pod)
+			}
 		}
 	}
+
+	wg.Wait()
 }
 
-func (w *Watcher) startLogCollectors(ctx context.Context, pod *corev1.Pod) {
-	w.startLogCollectorsForContainers(ctx, pod, pod.Spec.InitContainers, pod.Status.InitContainerStatuses)
-	w.startLogCollectorsForContainers(ctx, pod, pod.Spec.Containers, pod.Status.ContainerStatuses)
+func (w *Watcher) startLogCollectors(ctx context.Context, wg *sync.WaitGroup, pod *corev1.Pod) {
+	w.startLogCollectorsForContainers(ctx, wg, pod, pod.Spec.InitContainers, pod.Status.InitContainerStatuses)
+	w.startLogCollectorsForContainers(ctx, wg, pod, pod.Spec.Containers, pod.Status.ContainerStatuses)
 }
 
-func (w *Watcher) startLogCollectorsForContainers(ctx context.Context, pod *corev1.Pod, containers []corev1.Container, statuses []corev1.ContainerStatus) {
+func (w *Watcher) startLogCollectorsForContainers(ctx context.Context, wg *sync.WaitGroup, pod *corev1.Pod, containers []corev1.Container, statuses []corev1.ContainerStatus) {
 	podLog := w.getPodLog(pod)
 
 	for _, container := range containers {
@@ -131,16 +141,19 @@ func (w *Watcher) startLogCollectorsForContainers(ctx context.Context, pod *core
 		// remember that we have seen this incarnation
 		w.seenContainers.Insert(ident)
 
-		go w.collectLogs(ctx, containerLog, pod, containerName, int(status.RestartCount))
+		wg.Add(1)
+		go w.collectLogs(ctx, wg, containerLog, pod, containerName, int(status.RestartCount))
 	}
 }
 
-func (w *Watcher) collectLogs(ctx context.Context, log logrus.FieldLogger, pod *corev1.Pod, containerName string, restartCount int) {
+func (w *Watcher) collectLogs(ctx context.Context, wg *sync.WaitGroup, log logrus.FieldLogger, pod *corev1.Pod, containerName string, restartCount int) {
+	defer wg.Done()
+
 	log.Info("Starting to collect logs…")
 
 	request := w.clientset.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &corev1.PodLogOptions{
 		Container: containerName,
-		Follow:    true,
+		Follow:    !w.opt.OneShot,
 	})
 
 	stream, err := request.Stream(ctx)

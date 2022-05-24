@@ -29,6 +29,7 @@ type options struct {
 	containerNames []string
 	labels         string
 	live           bool
+	oneShot        bool
 	flatFiles      bool
 	verbose        bool
 }
@@ -44,6 +45,7 @@ func main() {
 	pflag.StringVarP(&opt.directory, "output", "o", opt.directory, "Directory where logs should be stored")
 	pflag.BoolVarP(&opt.flatFiles, "flat", "f", opt.flatFiles, "Do not create directory per namespace, but put all logs in the same directory")
 	pflag.BoolVar(&opt.live, "live", opt.live, "Only consider running pods, ignore completed/failed pods")
+	pflag.BoolVar(&opt.oneShot, "oneshot", opt.oneShot, "Dump logs, but do not tail the containers (i.e. exit after downloading the current state)")
 	pflag.BoolVarP(&opt.verbose, "verbose", "v", opt.verbose, "Enable more verbose output")
 	pflag.Parse()
 
@@ -136,12 +138,15 @@ func main() {
 		log.Fatalf("Failed to determine initial resourceVersion: %v", err)
 	}
 
-	wi, err := watchtools.NewRetryWatcher(resourceVersion, &watchContextInjector{
-		ctx: rootCtx,
-		ri:  resourceInterface,
-	})
-	if err != nil {
-		log.Fatalf("Failed to create watch for pods: %v", err)
+	var wi watch.Interface
+	if !opt.oneShot {
+		wi, err = watchtools.NewRetryWatcher(resourceVersion, &watchContextInjector{
+			ctx: rootCtx,
+			ri:  resourceInterface,
+		})
+		if err != nil {
+			log.Fatalf("Failed to create watch for pods: %v", err)
+		}
 	}
 
 	watcherOpts := watcher.Options{
@@ -150,6 +155,7 @@ func main() {
 		ResourceNames:  args,
 		ContainerNames: opt.containerNames,
 		RunningOnly:    opt.live,
+		OneShot:        opt.oneShot,
 	}
 
 	w := watcher.NewWatcher(clientset, c, log, initialPods, watcherOpts)

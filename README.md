@@ -28,6 +28,7 @@ Usage of loks:
   -l, --labels string           Label-selector as an alternative to specifying resource names
       --live                    Only consider running pods, ignore completed/failed pods
   -n, --namespace stringArray   Kubernetes namespace to watch resources in (supports glob expression) (can be given multiple times)
+      --oneshot                 Dump logs, but do not tail the containers (i.e. exit after downloading the current state)
   -o, --output string           Directory where logs should be stored
   -v, --verbose                 Enable more verbose output
 ```
