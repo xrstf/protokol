@@ -1,4 +1,4 @@
-module go.xrstf.de/loks
+module go.xrstf.de/protokol
 
 go 1.17
 

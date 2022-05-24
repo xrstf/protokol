@@ -1,6 +1,6 @@
-# loks - Collect Kubernetes Pod Logs with Ease
+# protokol - Collect Kubernetes Pod Logs with Ease
 
-`loks` is a command line tool to watch for pods and storing their logs as text files
+`protokol` is a command line tool to watch for pods and storing their logs as text files
 on your local machine. It's primarily intended to be used in test scenarios where you
 need to gather logs of many different, possibly restarting or reconciled pods at the
 same time.
@@ -11,17 +11,17 @@ same time.
 
 ## Installation
 
-You can download a binary for the [latest release on GitHub](https://github.com/xrstf/loks/releases)
-or install loks via Go:
+You can download a binary for the [latest release on GitHub](https://github.com/xrstf/protokol/releases)
+or install protokol via Go:
 
 ```bash
-go install go.xrstf.de/loks
+go install go.xrstf.de/protokol
 ```
 
 ## Usage
 
 ```
-Usage of loks:
+Usage of protokol:
   -c, --container stringArray   Container names to store logs for (supports glob expression) (can be given multiple times)
   -f, --flat                    Do not create directory per namespace, but put all logs in the same directory
       --kubeconfig string       kubeconfig file to use (uses $KUBECONFIG by default)
@@ -36,48 +36,48 @@ Usage of loks:
 ## Examples
 
 ```bash
-loks '*'
+protokol '*'
 ```
 
 This is the BFG: it will watch all Pods in all namespaces and stream the logs for each running container to
 a text file in your disk. Don't do this, you do not want to kill the apiserver with a gazillion streams.
 
 ```bash
-loks -n kube-system -n 'cluster-*'
+protokol -n kube-system -n 'cluster-*'
 ```
 
 You can restrict the Pods to a set of namespaces. Wildcards are allowed.
 
 ```bash
-loks -l 'foo=bar'
+protokol -l 'foo=bar'
 ```
 
 Label selectors work just as you would expect.
 
 ```bash
-loks 'kube-*' 'coredns-*' 'etcd-*'
+protokol 'kube-*' 'coredns-*' 'etcd-*'
 ```
 
 You can give multiple name patterns, placeholders are allowed.
 
 ```bash
-loks -c 'test*' 'kube-*' 'coredns-*' 'etcd-*'
+protokol -c 'test*' 'kube-*' 'coredns-*' 'etcd-*'
 ```
 
 You can restrict the container names using `-c`. This flag can be given multiple times and also supports wildcards.
 
 ```bash
-loks -o test 'kube-*' 'coredns-*' 'etcd-*'
+protokol -o test 'kube-*' 'coredns-*' 'etcd-*'
 ```
 
-By default loks will create a `loks-%Y%m%dT%m.%h%s` directory whenever you invoke it, but you can also specify
+By default protokol will create a `protokol-%Y%m%dT%m.%h%s` directory whenever you invoke it, but you can also specify
 a directory yourself.
 
 ```bash
-loks -o test -f 'kube-*' 'coredns-*' 'etcd-*'
+protokol -o test -f 'kube-*' 'coredns-*' 'etcd-*'
 ```
 
-By default loks will create one directory per namespace. With `-f` (`--flat`) you can disable this behaviour.
+By default protokol will create one directory per namespace. With `-f` (`--flat`) you can disable this behaviour.
 
 ## License
 

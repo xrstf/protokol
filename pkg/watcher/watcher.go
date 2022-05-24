@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"go.xrstf.de/loks/pkg/collector"
+	"go.xrstf.de/protokol/pkg/collector"
 
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"

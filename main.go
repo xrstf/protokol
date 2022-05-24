@@ -6,8 +6,8 @@ import (
 	"os"
 	"time"
 
-	"go.xrstf.de/loks/pkg/collector"
-	"go.xrstf.de/loks/pkg/watcher"
+	"go.xrstf.de/protokol/pkg/collector"
+	"go.xrstf.de/protokol/pkg/watcher"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
@@ -89,7 +89,7 @@ func main() {
 	}
 
 	if opt.directory == "" {
-		opt.directory = fmt.Sprintf("loks-%s", time.Now().Format("2006.01.02T15.04.05"))
+		opt.directory = fmt.Sprintf("protokol-%s", time.Now().Format("2006.01.02T15.04.05"))
 	}
 
 	log.WithField("directory", opt.directory).Info("Storing logs on disk.")
