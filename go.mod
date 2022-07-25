@@ -1,6 +1,6 @@
 module go.xrstf.de/protokol
 
-go 1.17
+go 1.18
 
 require (
 	github.com/goware/prefixer v0.0.0-20160118172347-395022866408
