@@ -40,7 +40,7 @@ type options struct {
 func main() {
 	rootCtx := context.Background()
 	opt := options{
-		streamPrefix: "[%pn/%pN:%c] >>",
+		streamPrefix: "[%pN/%pn:%c] >>",
 	}
 
 	pflag.StringVar(&opt.kubeconfig, "kubeconfig", opt.kubeconfig, "kubeconfig file to use (uses $KUBECONFIG by default)")
