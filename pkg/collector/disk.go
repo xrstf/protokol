@@ -76,7 +76,7 @@ func (c *diskCollector) CollectPodMetadata(ctx context.Context, pod *corev1.Pod)
 	return os.WriteFile(filename, encoded, 0644)
 }
 
-func (c *diskCollector) CollectLogs(ctx context.Context, log logrus.FieldLogger, pod *corev1.Pod, containerName string, stream io.ReadCloser) error {
+func (c *diskCollector) CollectLogs(ctx context.Context, log logrus.FieldLogger, pod *corev1.Pod, containerName string, stream io.Reader) error {
 	directory, err := c.getDirectory(pod)
 	if err != nil {
 		return err

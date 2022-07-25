@@ -27,6 +27,8 @@ type options struct {
 	directory      string
 	namespaces     []string
 	containerNames []string
+	stream         bool
+	streamPrefix   string
 	labels         string
 	live           bool
 	oneShot        bool
@@ -37,7 +39,9 @@ type options struct {
 
 func main() {
 	rootCtx := context.Background()
-	opt := options{}
+	opt := options{
+		streamPrefix: "[%pn/%pN:%c] >>",
+	}
 
 	pflag.StringVar(&opt.kubeconfig, "kubeconfig", opt.kubeconfig, "kubeconfig file to use (uses $KUBECONFIG by default)")
 	pflag.StringArrayVarP(&opt.namespaces, "namespace", "n", opt.namespaces, "Kubernetes namespace to watch resources in (supports glob expression) (can be given multiple times)")
@@ -46,6 +50,8 @@ func main() {
 	pflag.StringVarP(&opt.directory, "output", "o", opt.directory, "Directory where logs should be stored")
 	pflag.BoolVarP(&opt.flatFiles, "flat", "f", opt.flatFiles, "Do not create directory per namespace, but put all logs in the same directory")
 	pflag.BoolVar(&opt.live, "live", opt.live, "Only consider running pods, ignore completed/failed pods")
+	pflag.BoolVar(&opt.stream, "stream", opt.stream, "Do not just dump logs to disk, but also stream them to stdout")
+	pflag.StringVar(&opt.streamPrefix, "prefix", opt.streamPrefix, "Prefix pattern to put at the beginning of each streamed line (pn = Pod name, pN = Pod namespace, c = container name)")
 	pflag.BoolVar(&opt.oneShot, "oneshot", opt.oneShot, "Dump logs, but do not tail the containers (i.e. exit after downloading the current state)")
 	pflag.BoolVar(&opt.dumpMetadata, "metadata", opt.dumpMetadata, "Dump Pods additionally as YAML (note that this can include secrets in environment variables)")
 	pflag.BoolVarP(&opt.verbose, "verbose", "v", opt.verbose, "Enable more verbose output")
@@ -96,9 +102,21 @@ func main() {
 
 	log.WithField("directory", opt.directory).Info("Storing logs on disk.")
 
-	c, err := collector.NewDiskCollector(opt.directory, opt.flatFiles)
+	coll, err := collector.NewDiskCollector(opt.directory, opt.flatFiles)
 	if err != nil {
 		log.Fatalf("Failed to create log collector: %v", err)
+	}
+
+	if opt.stream {
+		stdoutCollector, err := collector.NewStreamCollector(opt.streamPrefix)
+		if err != nil {
+			log.Fatalf("Failed to create log collector: %v", err)
+		}
+
+		coll, err = collector.NewMultiplexCollector(coll, stdoutCollector)
+		if err != nil {
+			log.Fatalf("Failed to create log collector: %v", err)
+		}
 	}
 
 	// //////////////////////////////////////
@@ -161,7 +179,7 @@ func main() {
 		DumpMetadata:   opt.dumpMetadata,
 	}
 
-	w := watcher.NewWatcher(clientset, c, log, initialPods, watcherOpts)
+	w := watcher.NewWatcher(clientset, coll, log, initialPods, watcherOpts)
 	w.Watch(rootCtx, wi)
 }
 

@@ -3,6 +3,7 @@ module go.xrstf.de/protokol
 go 1.17
 
 require (
+	github.com/goware/prefixer v0.0.0-20160118172347-395022866408
 	github.com/sirupsen/logrus v1.9.0
 	github.com/spf13/pflag v1.0.5
 	k8s.io/api v0.24.3

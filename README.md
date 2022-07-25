@@ -31,6 +31,7 @@ Usage of protokol:
   -n, --namespace stringArray   Kubernetes namespace to watch resources in (supports glob expression) (can be given multiple times)
       --oneshot                 Dump logs, but do not tail the containers (i.e. exit after downloading the current state)
   -o, --output string           Directory where logs should be stored
+      --stream                  Do not just dump logs to disk, but also stream them to stdout
   -v, --verbose                 Enable more verbose output
 ```
 
@@ -79,6 +80,12 @@ protokol -o test -f 'kube-*' 'coredns-*' 'etcd-*'
 ```
 
 By default protokol will create one directory per namespace. With `-f` (`--flat`) you can disable this behaviour.
+
+```bash
+protokol --stream 'etcd-*'
+```
+
+This will not just dump the logs to disk, but also stream them to stdout.
 
 ## License
 
