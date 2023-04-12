@@ -58,8 +58,6 @@ func (c *diskCollector) CollectPodMetadata(ctx context.Context, pod *corev1.Pod)
 
 	filename := filepath.Join(directory, fmt.Sprintf("%s.yaml", pod.Name))
 
-	fmt.Println(filename)
-
 	// file exists already, do not overwrite
 	if _, err := os.Stat(filename); err == nil {
 		return nil
