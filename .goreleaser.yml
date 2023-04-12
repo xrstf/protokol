@@ -22,6 +22,8 @@ builds:
     ignore:
       - goos: darwin
         goarch: '386'
+      - goos: freebsd
+        goarch: '386'
     binary: '{{ .ProjectName }}'
 archives:
   - format: zip
