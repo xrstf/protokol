@@ -35,6 +35,8 @@ type options struct {
 	oneShot        bool
 	flatFiles      bool
 	dumpMetadata   bool
+	dumpEvents     bool
+	dumpRawEvents  bool
 	verbose        bool
 }
 
@@ -55,6 +57,8 @@ func main() {
 	pflag.StringVar(&opt.streamPrefix, "prefix", opt.streamPrefix, "Prefix pattern to put at the beginning of each streamed line (pn = Pod name, pN = Pod namespace, c = container name)")
 	pflag.BoolVar(&opt.oneShot, "oneshot", opt.oneShot, "Dump logs, but do not tail the containers (i.e. exit after downloading the current state)")
 	pflag.BoolVar(&opt.dumpMetadata, "metadata", opt.dumpMetadata, "Dump Pods additionally as YAML (note that this can include secrets in environment variables)")
+	pflag.BoolVar(&opt.dumpEvents, "events", opt.dumpEvents, "Dump events for each matching Pod as a human readable log file (note: label selectors are not respected)")
+	pflag.BoolVar(&opt.dumpRawEvents, "events-raw", opt.dumpRawEvents, "Dump events for each matching Pod as YAML (note: label selectors are not respected)")
 	pflag.BoolVarP(&opt.verbose, "verbose", "v", opt.verbose, "Enable more verbose output")
 	pflag.Parse()
 
@@ -103,7 +107,7 @@ func main() {
 
 	log.WithField("directory", opt.directory).Info("Storing logs on disk.")
 
-	coll, err := collector.NewDiskCollector(opt.directory, opt.flatFiles)
+	coll, err := collector.NewDiskCollector(opt.directory, opt.flatFiles, opt.dumpEvents, opt.dumpRawEvents)
 	if err != nil {
 		log.Fatalf("Failed to create log collector: %v", err)
 	}
@@ -141,14 +145,23 @@ func main() {
 	}
 
 	// //////////////////////////////////////
-	// start to watch pods
+	// start to watch pods & potentially events
 
-	resourceInterface := dynamicClient.Resource(schema.GroupVersionResource{
+	podResourceInterface := dynamicClient.Resource(schema.GroupVersionResource{
 		Version:  "v1",
 		Resource: "pods",
 	})
 
-	log.Debug("Starting to watch pods…")
+	eventResourceInterface := dynamicClient.Resource(schema.GroupVersionResource{
+		Version:  "v1",
+		Resource: "events",
+	})
+
+	if opt.dumpEvents || opt.dumpRawEvents {
+		log.Debug("Starting to watch pods & events…")
+	} else {
+		log.Debug("Starting to watch pods…")
+	}
 
 	// to use the retrywatcher, we need a start revision; setting this to empty or "0"
 	// is not supported, so we need a real revision; to achieve this we simply create
@@ -159,14 +172,34 @@ func main() {
 		log.Fatalf("Failed to determine initial resourceVersion: %v", err)
 	}
 
-	var wi watch.Interface
+	var initialEvents []corev1.Event
+	if opt.dumpEvents || opt.dumpRawEvents {
+		initialEvents, err = getStartEvents(rootCtx, clientset, opt.labels)
+		if err != nil {
+			log.Fatalf("Failed to retrieve initial events: %v", err)
+		}
+	}
+
+	var (
+		podWatcher   watch.Interface
+		eventWatcher watch.Interface
+	)
+
 	if !opt.oneShot {
-		wi, err = watchtools.NewRetryWatcher(resourceVersion, &watchContextInjector{
+		podWatcher, err = watchtools.NewRetryWatcher(resourceVersion, &watchContextInjector{
 			ctx: rootCtx,
-			ri:  resourceInterface,
+			ri:  podResourceInterface,
 		})
 		if err != nil {
 			log.Fatalf("Failed to create watch for pods: %v", err)
+		}
+
+		eventWatcher, err = watchtools.NewRetryWatcher(resourceVersion, &watchContextInjector{
+			ctx: rootCtx,
+			ri:  eventResourceInterface,
+		})
+		if err != nil {
+			log.Fatalf("Failed to create watch for events: %v", err)
 		}
 	}
 
@@ -178,10 +211,11 @@ func main() {
 		RunningOnly:    opt.live,
 		OneShot:        opt.oneShot,
 		DumpMetadata:   opt.dumpMetadata,
+		DumpEvents:     opt.dumpEvents || opt.dumpRawEvents,
 	}
 
-	w := watcher.NewWatcher(clientset, coll, log, initialPods, watcherOpts)
-	w.Watch(rootCtx, wi)
+	w := watcher.NewWatcher(clientset, coll, log, initialPods, initialEvents, watcherOpts)
+	w.Watch(rootCtx, podWatcher, eventWatcher)
 }
 
 func getStartPods(ctx context.Context, cs *kubernetes.Clientset, labelSelector string) ([]corev1.Pod, string, error) {
@@ -193,6 +227,15 @@ func getStartPods(ctx context.Context, cs *kubernetes.Clientset, labelSelector s
 	}
 
 	return pods.Items, pods.ResourceVersion, nil
+}
+
+func getStartEvents(ctx context.Context, cs *kubernetes.Clientset, labelSelector string) ([]corev1.Event, error) {
+	events, err := cs.CoreV1().Events("").List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to perform list on Events: %w", err)
+	}
+
+	return events.Items, nil
 }
 
 type watchContextInjector struct {

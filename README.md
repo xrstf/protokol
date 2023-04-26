@@ -23,6 +23,8 @@ go install go.xrstf.de/protokol
 ```
 Usage of protokol:
   -c, --container stringArray   Container names to store logs for (supports glob expression) (can be given multiple times)
+      --events                  Dump events for each matching Pod as a human readable log file (note: label selectors are not respected)
+      --events-raw              Dump events for each matching Pod as YAML (note: label selectors are not respected)
   -f, --flat                    Do not create directory per namespace, but put all logs in the same directory
       --kubeconfig string       kubeconfig file to use (uses $KUBECONFIG by default)
   -l, --labels string           Label-selector as an alternative to specifying resource names
@@ -31,6 +33,7 @@ Usage of protokol:
   -n, --namespace stringArray   Kubernetes namespace to watch resources in (supports glob expression) (can be given multiple times)
       --oneshot                 Dump logs, but do not tail the containers (i.e. exit after downloading the current state)
   -o, --output string           Directory where logs should be stored
+      --prefix string           Prefix pattern to put at the beginning of each streamed line (pn = Pod name, pN = Pod namespace, c = container name) (default "[%pN/%pn:%c] >>")
       --stream                  Do not just dump logs to disk, but also stream them to stdout
   -v, --verbose                 Enable more verbose output
 ```

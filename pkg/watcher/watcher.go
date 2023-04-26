@@ -24,6 +24,7 @@ type Watcher struct {
 	log            logrus.FieldLogger
 	collector      collector.Collector
 	initialPods    []corev1.Pod
+	initialEvents  []corev1.Event
 	opt            Options
 	seenContainers sets.String
 }
@@ -36,6 +37,7 @@ type Options struct {
 	RunningOnly    bool
 	OneShot        bool
 	DumpMetadata   bool
+	DumpEvents     bool
 }
 
 func NewWatcher(
@@ -43,6 +45,7 @@ func NewWatcher(
 	c collector.Collector,
 	log logrus.FieldLogger,
 	initialPods []corev1.Pod,
+	initialEvents []corev1.Event,
 	opt Options,
 ) *Watcher {
 	return &Watcher{
@@ -50,12 +53,13 @@ func NewWatcher(
 		log:            log,
 		collector:      c,
 		initialPods:    initialPods,
+		initialEvents:  initialEvents,
 		opt:            opt,
 		seenContainers: sets.NewString(),
 	}
 }
 
-func (w *Watcher) Watch(ctx context.Context, wi watch.Interface) {
+func (w *Watcher) Watch(ctx context.Context, podWatcher watch.Interface, eventWatcher watch.Interface) {
 	wg := sync.WaitGroup{}
 
 	for i := range w.initialPods {
@@ -64,10 +68,42 @@ func (w *Watcher) Watch(ctx context.Context, wi watch.Interface) {
 		}
 	}
 
+	for i := range w.initialEvents {
+		if w.eventMatchesCriteria(&w.initialEvents[i]) {
+			w.dumpEvent(ctx, &w.initialEvents[i])
+		}
+	}
+
+	// eventWatcher is nil if neither --events not --raw-events was not specified.
+	if eventWatcher != nil {
+		wg.Add(1)
+
+		go func() {
+			for event := range eventWatcher.ResultChan() {
+				unstructuredObj, ok := event.Object.(*unstructured.Unstructured)
+				if !ok {
+					continue
+				}
+
+				k8sEvent := &corev1.Event{}
+				err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredObj.UnstructuredContent(), k8sEvent)
+				if err != nil {
+					continue
+				}
+
+				if w.eventMatchesCriteria(k8sEvent) {
+					w.dumpEvent(ctx, k8sEvent)
+				}
+			}
+
+			wg.Done()
+		}()
+	}
+
 	// wi can be nil if we do not want to actually watch, but instead
 	// just process the initial pods (if --oneshot is given)
-	if wi != nil {
-		for event := range wi.ResultChan() {
+	if podWatcher != nil {
+		for event := range podWatcher.ResultChan() {
 			obj, ok := event.Object.(*unstructured.Unstructured)
 			if !ok {
 				continue
@@ -92,6 +128,16 @@ func (w *Watcher) startLogCollectors(ctx context.Context, wg *sync.WaitGroup, po
 	w.dumpPodMetadata(ctx, pod)
 	w.startLogCollectorsForContainers(ctx, wg, pod, pod.Spec.InitContainers, pod.Status.InitContainerStatuses)
 	w.startLogCollectorsForContainers(ctx, wg, pod, pod.Spec.Containers, pod.Status.ContainerStatuses)
+}
+
+func (w *Watcher) dumpEvent(ctx context.Context, event *corev1.Event) {
+	if !w.opt.DumpEvents {
+		return
+	}
+
+	if err := w.collector.CollectEvent(ctx, event); err != nil {
+		w.getEventLog(event.InvolvedObject).WithError(err).Error("Failed to collect event.")
+	}
 }
 
 func (w *Watcher) dumpPodMetadata(ctx context.Context, pod *corev1.Pod) {
@@ -190,6 +236,30 @@ func (w *Watcher) podMatchesCriteria(pod *corev1.Pod) bool {
 	podLog := w.getPodLog(pod)
 
 	return w.resourceNameMatches(podLog, pod) && w.resourceNamespaceMatches(podLog, pod) && w.resourceLabelsMatches(podLog, pod)
+}
+
+func (w *Watcher) getEventLog(obj corev1.ObjectReference) logrus.FieldLogger {
+	return w.log.WithField("pod", obj.Name).WithField("namespace", obj.Namespace)
+}
+
+func (w *Watcher) eventMatchesCriteria(event *corev1.Event) bool {
+	obj := event.InvolvedObject
+
+	if obj.Kind != "Pod" || obj.APIVersion != "v1" {
+		w.log.Debug("Involved object is not a Pod.")
+		return false
+	}
+
+	eventLog := w.getEventLog(obj)
+
+	dummyPod := &corev1.Pod{}
+	dummyPod.Name = obj.Name
+	dummyPod.Namespace = obj.Namespace
+
+	// Without fetching the object and hoping it still exists, we cannot compare the labels, so for
+	// events we simply ignore the label selector :grim:
+
+	return w.resourceNameMatches(eventLog, dummyPod) && w.resourceNamespaceMatches(eventLog, dummyPod)
 }
 
 func (w *Watcher) resourceNameMatches(log logrus.FieldLogger, pod *corev1.Pod) bool {

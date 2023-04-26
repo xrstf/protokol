@@ -26,6 +26,10 @@ func NewStreamCollector(prefixFormat string) (Collector, error) {
 	}, nil
 }
 
+func (c *streamCollector) CollectEvent(ctx context.Context, event *corev1.Event) error {
+	return nil
+}
+
 func (c *streamCollector) CollectPodMetadata(ctx context.Context, pod *corev1.Pod) error {
 	return nil
 }

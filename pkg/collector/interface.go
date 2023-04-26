@@ -10,5 +10,6 @@ import (
 
 type Collector interface {
 	CollectPodMetadata(ctx context.Context, pod *corev1.Pod) error
+	CollectEvent(ctx context.Context, event *corev1.Event) error
 	CollectLogs(ctx context.Context, log logrus.FieldLogger, pod *corev1.Pod, containerName string, stream io.Reader) error
 }

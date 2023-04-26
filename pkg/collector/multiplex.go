@@ -23,6 +23,14 @@ func NewMultiplexCollector(a, b Collector) (Collector, error) {
 	}, nil
 }
 
+func (c *multiplexCollector) CollectEvent(ctx context.Context, event *corev1.Event) error {
+	if err := c.a.CollectEvent(ctx, event); err != nil {
+		return err
+	}
+
+	return c.b.CollectEvent(ctx, event)
+}
+
 func (c *multiplexCollector) CollectPodMetadata(ctx context.Context, pod *corev1.Pod) error {
 	if err := c.a.CollectPodMetadata(ctx, pod); err != nil {
 		return err
