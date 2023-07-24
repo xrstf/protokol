@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime"
+	"strings"
 	"time"
 
 	"go.xrstf.de/protokol/pkg/collector"
@@ -26,6 +28,22 @@ import (
 	watchtools "k8s.io/client-go/tools/watch"
 )
 
+// Project build specific vars
+var (
+	Tag    string
+	Commit string
+)
+
+func printVersion() {
+	fmt.Printf(
+		"version: %s\nbuilt with: %s\ntag: %s\ncommit: %s\n",
+		strings.TrimPrefix(Tag, "v"),
+		runtime.Version(),
+		Tag,
+		Commit,
+	)
+}
+
 type options struct {
 	kubeconfig     string
 	directory      string
@@ -41,6 +59,7 @@ type options struct {
 	dumpEvents     bool
 	dumpRawEvents  bool
 	verbose        bool
+	version        bool
 }
 
 func main() {
@@ -63,7 +82,13 @@ func main() {
 	pflag.BoolVar(&opt.dumpEvents, "events", opt.dumpEvents, "Dump events for each matching Pod as a human readable log file (note: label selectors are not respected)")
 	pflag.BoolVar(&opt.dumpRawEvents, "events-raw", opt.dumpRawEvents, "Dump events for each matching Pod as YAML (note: label selectors are not respected)")
 	pflag.BoolVarP(&opt.verbose, "verbose", "v", opt.verbose, "Enable more verbose output")
+	pflag.BoolVarP(&opt.version, "version", "V", opt.version, "Show version info and exit immediately")
 	pflag.Parse()
+
+	if opt.version {
+		printVersion()
+		return
+	}
 
 	// //////////////////////////////////////
 	// setup logging
