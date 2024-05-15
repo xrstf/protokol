@@ -1,1 +1,11 @@
-importOrder: [std, external, project]
+# SPDX-FileCopyrightText: 2024 Christoph Mewes
+# SPDX-License-Identifier: MIT
+
+# This is the configuration for https://github.com/xrstf/gimps.
+
+importOrder: [std, external, project, kubernetes]
+sets:
+  - name: kubernetes
+    patterns:
+      - 'k8s.io/**'
+      - '*.k8s.io/**'

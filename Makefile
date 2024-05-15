@@ -19,6 +19,10 @@ default: build
 build:
 	go build $(GO_BUILD_FLAGS) -o $(OUTPUT_DIR)/ .
 
+.PHONY: install
+install:
+	go install $(GO_BUILD_FLAGS) .
+
 .PHONY: test
 test:
 	CGO_ENABLED=1 go test $(GO_TEST_FLAGS) ./...

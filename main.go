@@ -12,6 +12,10 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
+
+	"go.xrstf.de/protokol/pkg/collector"
+	"go.xrstf.de/protokol/pkg/watcher"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -22,9 +26,6 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
 	"k8s.io/client-go/tools/clientcmd"
 	watchtools "k8s.io/client-go/tools/watch"
-
-	"go.xrstf.de/protokol/pkg/collector"
-	"go.xrstf.de/protokol/pkg/watcher"
 )
 
 // These variables get set by ldflags during compilation.
