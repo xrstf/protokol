@@ -10,8 +10,6 @@ import (
 	"strings"
 	"sync"
 
-	"go.xrstf.de/protokol/pkg/collector"
-
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -20,6 +18,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
+
+	"go.xrstf.de/protokol/pkg/collector"
 )
 
 type Watcher struct {

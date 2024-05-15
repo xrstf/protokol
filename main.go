@@ -11,9 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"go.xrstf.de/protokol/pkg/collector"
-	"go.xrstf.de/protokol/pkg/watcher"
-
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	corev1 "k8s.io/api/core/v1"
@@ -26,6 +23,9 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
 	"k8s.io/client-go/tools/clientcmd"
 	watchtools "k8s.io/client-go/tools/watch"
+
+	"go.xrstf.de/protokol/pkg/collector"
+	"go.xrstf.de/protokol/pkg/watcher"
 )
 
 // Project build specific vars
