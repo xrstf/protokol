@@ -164,7 +164,11 @@ func main() {
 
 	log.Debug("Creating Kubernetes clientset…")
 
-	config, err := clientcmd.BuildConfigFromFlags("", opt.kubeconfig)
+	rules := clientcmd.NewDefaultClientConfigLoadingRules()
+	rules.ExplicitPath = opt.kubeconfig
+
+	deferred := clientcmd.NewInteractiveDeferredLoadingClientConfig(rules, &clientcmd.ConfigOverrides{}, os.Stdin)
+	config, err := deferred.ClientConfig()
 	if err != nil {
 		log.Fatalf("Failed to create Kubernetes client: %v", err)
 	}
