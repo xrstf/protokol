@@ -50,14 +50,14 @@ func (c *multiplexCollector) CollectLogs(ctx context.Context, log logrus.FieldLo
 	waiter := sync.WaitGroup{}
 	waiter.Add(1)
 	go func() {
-		c.a.CollectLogs(ctx, log, pod, containerName, teeReader)
+		_ = c.a.CollectLogs(ctx, log, pod, containerName, teeReader)
 		pipeWriter.Close()
 		waiter.Done()
 	}()
 
 	waiter.Add(1)
 	go func() {
-		c.b.CollectLogs(ctx, log, pod, containerName, pipeReader)
+		_ = c.b.CollectLogs(ctx, log, pod, containerName, pipeReader)
 		waiter.Done()
 	}()
 

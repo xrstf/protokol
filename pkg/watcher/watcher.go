@@ -30,7 +30,7 @@ type Watcher struct {
 	initialPods    []corev1.Pod
 	initialEvents  []corev1.Event
 	opt            Options
-	seenContainers sets.String
+	seenContainers sets.Set[string]
 }
 
 type Options struct {
@@ -59,7 +59,7 @@ func NewWatcher(
 		initialPods:    initialPods,
 		initialEvents:  initialEvents,
 		opt:            opt,
-		seenContainers: sets.NewString(),
+		seenContainers: sets.New[string](),
 	}
 }
 
