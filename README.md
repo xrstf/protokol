@@ -1,4 +1,11 @@
-# protokol - Collect Kubernetes Pod Logs with Ease
+# Migration note
+
+> [!IMPORTANT]
+> `protokol` has been migrated to [codeberg.org/xrstf/protokol](https://codeberg.org/xrstf/protokol).
+
+---
+
+## protokol - Collect Kubernetes Pod Logs with Ease
 
 `protokol` is a command line tool to watch for pods and storing their logs as text files
 on your local machine. It's primarily intended to be used in test scenarios where you
@@ -9,16 +16,16 @@ same time.
   <img src="docs/sample.png" />
 </p>
 
-## Installation
+### Installation
 
-You can download a binary for the [latest release on GitHub](https://github.com/xrstf/protokol/releases)
+You can download a binary for the [latest release on Codeberg](https://codeberg.org/xrstf/protokol/releases)
 or install protokol via Go:
 
 ```bash
 go install go.xrstf.de/protokol
 ```
 
-## Usage
+### Usage
 
 ```
 Usage of protokol:
@@ -38,7 +45,7 @@ Usage of protokol:
   -v, --verbose                 Enable more verbose output
 ```
 
-## Examples
+### Examples
 
 ```bash
 protokol '*'
@@ -90,6 +97,6 @@ protokol --stream 'etcd-*'
 
 This will not just dump the logs to disk, but also stream them to stdout.
 
-## License
+### License
 
 MIT
